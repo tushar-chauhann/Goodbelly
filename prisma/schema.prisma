@@ -1,0 +1,968 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  VENDOR
+  ADMIN
+  SUB_ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  PREPARING
+  REJECTED
+  RETURNED
+}
+
+enum PaymentMethod {
+  ONLINE
+  CASH_ON_DELIVERY
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum ProductType {
+  VEG
+  NON_VEG
+  EGGETARIAN
+}
+
+enum AccountType {
+  SAVINGS
+  CURRENT
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DocumentType {
+  AADHAAR
+  PAN
+  FSSAI
+  GST
+}
+
+enum DocStatus {
+  NOT_AVAILABLE
+  UPLOADED
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum ConsultantRole {
+  NUTRITIONIST
+  DIETICIAN
+  DOCTOR
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REJECTED
+  COMPLETED
+}
+
+// Enums
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum BannerPlatform {
+  WEB
+  MOBILE
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+model User {
+  id                String         @id @default(uuid())
+  name              String
+  email             String         @unique
+  phone             String?
+  password          String
+  profileImage      String?        @db.Text
+  publicId          String?
+  gender            String?
+  preference        String?
+  role              Role           @default(USER)
+  addresses         Address[]
+  carts             Cart[] // instead of `cart Cart?`
+  orders            Order[]
+  referralsReceived Referral[]     @relation("UserReferred")
+  referralsSent     Referral[]     @relation("UserReferrer")
+  reviews           Review[]
+  rewards           Reward[]
+  usedPromo         UsedPromo[]
+  wishlist          Wishlist?
+  provider          String?        @default("LOCAL")
+  vendor            Vendor? // For VENDOR users
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  Nutrition         Nutrition?     @relation(fields: [nutritionId], references: [id])
+  nutritionId       String?
+  isApproved        Boolean        @default(false) // For admin approval
+  Booking           Booking[]
+  subscriptions     Subscription[]
+  subsReviews       SubsReview[]
+  coupons           PromoCode[]
+  deletionReason    String?
+  isDeleted         Boolean        @default(false)
+  deletedAt         DateTime?
+}
+
+model Subscription {
+  id              String             @id @default(uuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealTypes       MealType? // Made optional for backward compatibility
+  items           SubscriptionItem[]
+  vendorId        String
+  vendor          Vendor             @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  startDate       DateTime
+  endDate         DateTime?
+  status          SubscriptionStatus @default(ACTIVE)
+  frequency       String // e.g., Daily, Weekly, Monthly
+  nextBillingDate DateTime
+  totalPrice      Float
+  discountAmount  Float? // Subscription discount amount
+  discountId      String? // Discount ID
+  discount        Discount?          @relation(fields: [discountId], references: [id], onDelete: SetNull)
+  finalPrice      Float // Final price after applying discount
+  deliveryTimes   TimeWindow[] // Delivery time windows (e.g., 8-9 AM)
+  weeklySchedule  Json? // Store day-based meal selections with timing
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  Billing         Billing[]
+  SubsReview      SubsReview[]
+}
+
+model Discount {
+  id            String         @id @default(uuid())
+  vendorId      String
+  vendor        Vendor         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  type          String // percentage or fixed amount
+  code          String         @unique
+  value         Float // Discount value
+  minItems      Int            @default(1) // Minimum items for discount to apply
+  minTotalPrice Float // Minimum total price for discount to apply
+  expiry        DateTime
+  usageCount    Int            @default(0) // Track how many times the discount has been used
+  createdAt     DateTime       @default(now())
+  subscriptions Subscription[]
+}
+
+model SubscriptionItem {
+  id             String       @id @default(uuid())
+  subscriptionId String
+  itemId         String
+  variantId      String
+  price          Float
+  quantity       Int?
+  item           Product      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  variant        Weight       @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model TimeWindow {
+  id             String       @id @default(uuid())
+  subscriptionId String
+  startTime      String // e.g., "8:00 AM"
+  endTime        String // e.g., "9:00 AM"
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model Billing {
+  id               String        @id @default(uuid())
+  subscriptionId   String
+  subscription     Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount           Float
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentReference String        @unique
+  billingDate      DateTime      @default(now())
+  nextBillingDate  DateTime
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model SubsReview {
+  id             String       @id @default(uuid())
+  rating         Int
+  comment        String?
+  userId         String
+  subscriptionId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+}
+
+model Nutrition {
+  id           String  @id @default(uuid())
+  calories     Int
+  calBenchmark Int?
+  protein      Float
+  proteinBench Float?
+  carbs        Float?
+  carbsBench   Float?
+  fats         Float?
+  fatsBench    Float?
+  fiber        Float?
+  fiberBench   Float?
+  sugar        Float?
+  sugarBench   Float?
+  sodium       Float?
+  sodiumBench  Float?
+  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId    String  @unique
+  User         User[]
+}
+
+model Vendor {
+  id                 String  @id @default(uuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kitchenName        String
+  kitchenId          String?
+  coverImage         String?
+  coverPublicId      String?
+  totalEarnings      Float?
+  amountReceived     Float?
+  amountPending      Float?
+  secondaryEmail     String?
+  address            String
+  city               String
+  latitude           Float?
+  longitude          Float?
+  // Compliance IDs (make required/optional per your flow)
+  fssaiLicenseNumber String? @unique
+  gstNumber          String? @unique
+  pan                String? @unique // keep masked in app layer when showing
+  aadhaarLast4       String? // store only last4 for safety
+
+  // 1:1 relation to BankAccount (optional until vendor adds it)
+  bankAccount    BankAccount?
+  VendorDocument VendorDocument[]
+  phoneNumbers   VendorPhone[] // 📞 Multiple phone numbers
+
+  products  Product[]
+  Cart      Cart[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  subscriptions Subscription[]
+  discounts     Discount[]
+
+  // 🕒 New fields
+  openingHours     Json? // stores weekly schedule in JSON format
+  openTime         String? // for manual override
+  closeTime        String?
+  isOpen           Boolean   @default(true) // manual toggle (true = open)
+  pauseReason      String? // optional reason for pause
+  lastStatusChange DateTime? // track last change for analytics
+  Order            Order[]
+
+  addOnCategories AddOnCategory[]
+
+  @@index([city])
+}
+
+model VendorPhone {
+  id        String   @id @default(uuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  phone     String
+  isPrimary Boolean  @default(false)
+  label     String? // e.g., "Office", "Mobile", "WhatsApp"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([vendorId])
+}
+
+model VendorDocument {
+  id                String       @id @default(uuid())
+  vendorId          String
+  vendor            Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  type              DocumentType
+  idNumberRaw       String? // if you MUST keep full number (avoid for Aadhaar)
+  idNumberMasked    String? // e.g., XXXX-XXXX-1234
+  nameOnDoc         String?
+  businessNameOnDoc String? // useful for FSSAI/GST
+  expiryDate        DateTime? // FSSAI validity, etc.
+  // File storage (only URLs & metadata in DB)
+  fileUrl           String? // S3/Cloudinary/GCS URL (private)
+  mimeType          String? // application/pdf, image/jpeg, image/png
+  sizeBytes         Int?
+  fileHashSha256    String? // integrity check
+  status            DocStatus    @default(NOT_AVAILABLE)
+  rejectionReason   String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime?    @updatedAt
+
+  @@index([vendorId, type])
+}
+
+model BankAccount {
+  id       String  @id @default(uuid())
+  vendorId String? @unique
+  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  accountHolderName String
+  accountNumber     String // store as string to keep leading zeros
+  ifscCode          String
+  bankName          String
+  branchName        String?
+  accountType       AccountType @default(SAVINGS)
+
+  upiId              String? // optional (e.g., "name@bank")
+  cancelledChequeUrl String? // proof doc (S3/Cloudinary URL)
+  verificationStatus VerificationStatus @default(VERIFIED)
+  verifiedAt         DateTime?
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  consultant   Consultant? @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  consultantId String?     @unique
+
+  // Useful indexes for lookups & validation
+  @@index([ifscCode])
+  @@index([accountNumber])
+}
+
+model Product {
+  id            String             @id @default(uuid())
+  name          String
+  description   String?            @db.Text
+  productType   ProductType
+  brandName     String
+  department    String
+  categoryId    String
+  vendorId      String
+  category      Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  vendor        Vendor             @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  weights       Weight[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  reviews       Review[]
+  wishlists     Wishlist[]         @relation("ProductToWishlist")
+  images        Image[]
+  coverImage    String?
+  coverPublicId String?
+  isVerified    Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  Nutrition     Nutrition?
+  Ingredients   Ingredients[]
+  community     community?         @relation(fields: [communityId], references: [id])
+  communityId   String?
+  occasions     Occasion[] // implicit many-to-many
+  keywords      keyword[]
+  subsItems     SubscriptionItem[]
+  label         String?
+  highlights    Json?
+  isDeleted     Boolean            @default(false)
+  deletedAt     DateTime?
+  isPinned      Boolean            @default(false)
+  order         Int? // 1, 2, or 3
+
+  isCustomizable Boolean        @default(false) // Whether product has add-ons/customization
+  productAddOns  ProductAddOn[] // Add-on categories linked to this product
+}
+
+model keyword {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  image       String?
+  publicId    String?
+  products    Product[]
+}
+
+model Weight {
+  id                String             @id @default(uuid())
+  productId         String
+  weight            String
+  sku               String?
+  stock             Int
+  price             Float
+  discountPrice     Float
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  subscriptionItems SubscriptionItem[]
+}
+
+model Image {
+  id        String  @id @default(uuid())
+  url       String
+  publicId  String
+  altText   String?
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Ingredients {
+  id       String    @id @default(uuid())
+  name     String
+  image    String?
+  publicId String?
+  products Product[]
+}
+
+model community {
+  id       String    @id @default(uuid())
+  name     String?
+  image    String?
+  publicId String?
+  products Product[]
+}
+
+model Occasion {
+  id        String   @id @default(uuid())
+  key       String   @unique // e.g. "pre_workout", "post_workout", "dessert", "cheat_meal"
+  label     String // e.g. "pre-workout"
+  icon      String?  @db.Text // optional, if you want to store an icon name/url
+  publicId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[] //many-to-many
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  productId String
+  weightId  String
+  quantity  Int
+  price     Float
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  Weight    Weight  @relation(fields: [weightId], references: [id], onDelete: Cascade)
+  Addition  Json?
+  isAdded   Boolean @default(false)
+}
+
+model Cart {
+  id        String   @id @default(uuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CartItem[]
+
+  @@unique([userId, vendorId]) // Allow multiple carts, one per vendor
+}
+
+model Order {
+  id               String        @id @default(uuid())
+  userId           String
+  vendorId         String
+  addressId        String
+  totalPrice       Float
+  gstCharges       Float?
+  deliveryCharges  Float?
+  platformCharges  Float?
+  discount         Float?
+  grandTotal       Float?
+  status           OrderStatus   @default(PENDING)
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentMethod    PaymentMethod
+  referenceId      String        @unique
+  paymentReference String?
+  rewardPoints     Int?
+  promoCodeId      String?
+  isDeleted        Boolean       @default(false)
+
+  // uEngage Delivery Fields
+  deliveryTaskId        String? // taskId from uEngage
+  deliveryPartnerStatus String? // ACCEPTED, ALLOTTED...
+  riderName             String?
+  riderPhone            String?
+  riderLatitude         String?
+  riderLongitude        String?
+  trackingUrl           String?
+  rtoReason             String?
+  deliveryInitiated     Boolean @default(false)
+  isAccepted            Boolean @default(true)
+
+  // Relations
+  address      Address     @relation(fields: [addressId], references: [id])
+  appliedPromo PromoCode?  @relation(fields: [promoCodeId], references: [id])
+  user         User        @relation(fields: [userId], references: [id])
+  vendor       Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  items        OrderItem[]
+  instructions String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  weightId  String
+  quantity  Int
+  price     Float
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+  Weight    Weight? @relation(fields: [weightId], references: [id])
+  Addition  Json?
+  isAdded   Boolean @default(false)
+}
+
+model Review {
+  id           String      @id @default(uuid())
+  rating       Int
+  comment      String?
+  image        String?
+  productId    String?
+  consultantId String?
+  userId       String
+  isVerified   Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  consultant   Consultant? @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  product      Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Wishlist {
+  id       String    @id @default(uuid())
+  userId   String    @unique
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[] @relation("ProductToWishlist")
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  userId      String
+  addressLine String
+  phone       String?
+  town        String?
+  area        String?
+  district    String?
+  city        String?
+  state       String?
+  country     String?
+  zipCode     String?
+  landmark    String?
+  latitude    Float?
+  longitude   Float?
+  type        String   @default("Home")
+  isPrimary   Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Order       Order[]
+}
+
+model PromoCode {
+  id           String      @id @default(uuid())
+  code         String      @unique
+  userId       String?
+  user         User?       @relation(fields: [userId], references: [id])
+  discountType String?     @default("FLAT")
+  discount     Float
+  expiry       DateTime
+  minOrder     Float
+  createdAt    DateTime    @default(now())
+  Order        Order[]
+  usedBy       UsedPromo[]
+
+  // 🆕 Optional influencer/secret fields
+  isHidden       Boolean? @default(false) // hide from normal listings
+  influencerName String? // e.g. Instagram handle
+}
+
+model UsedPromo {
+  id          String    @id @default(uuid())
+  userId      String
+  promoCodeId String
+  usedAt      DateTime  @default(now())
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Referral {
+  id           String   @id @default(uuid())
+  referrerId   String
+  referredId   String
+  rewardPoints Int      @default(0)
+  createdAt    DateTime @default(now())
+  referred     User     @relation("UserReferred", fields: [referredId], references: [id])
+  referrer     User     @relation("UserReferrer", fields: [referrerId], references: [id])
+}
+
+model Reward {
+  id        String   @id @default(uuid())
+  userId    String
+  points    Int      @default(0)
+  reason    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Banner {
+  id          String         @id @default(uuid())
+  title       String?
+  description String?
+  offer       String?
+  link        String?
+  imageUrl    String
+  publicId    String
+  isActive    Boolean        @default(true)
+  platform    BannerPlatform @default(WEB) // 👈 Added field
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Testimonial {
+  id          String   @id @default(uuid())
+  name        String
+  description String   @db.Text
+  imageUrl    String
+  publicId    String
+  city        String
+  rating      Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  phone     String
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subscribers {
+  id    String  @id @default(uuid())
+  name  String?
+  email String  @unique
+}
+
+model Article {
+  id          String   @id @default(uuid())
+  date        DateTime @default(now())
+  title       String
+  author      String
+  description String
+  image       String
+  publicId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Brand {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  website     String?
+  imageUrl    String
+  publicId    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TempOTP {
+  email     String   @id
+  otp       String
+  otpExpiry DateTime
+}
+
+model Stats {
+  id         String   @id @default(uuid())
+  heading    String
+  subheading String?
+  kitchens   Int
+  orders     Int
+  places     Int
+  image      String?
+  publicId   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Scoop {
+  id        String   @id @default(uuid()) // Unique ID with UUID default
+  heading   String // Heading for the scoop
+  content   String   @db.Text // HTML content (rich text)
+  imageUrl  String? // Optional image URL
+  publicId  String? // Optional public ID (for cloud storage, etc.)
+  updatedAt DateTime @updatedAt // Automatically updated timestamp when modified
+}
+
+// Consultation Expert and related models
+model Consultant {
+  id       String  @id @default(uuid())
+  username String  @unique
+  name     String
+  // NEW FIELDS (recommended)
+  email    String  @unique
+  phone    String  @unique
+  city     String?
+  password String // store bcrypt hash
+
+  // Optional niceties
+  tagline                  String?
+  professionalAssociations String? @db.Text
+
+  // ✅ NEW FIELD: Instant consultation option
+  allowInstantCall Boolean          @default(false)
+  consultantTypes  ConsultantType[]
+
+  // Existing
+  credentials    String? // keep for degrees like "M.Sc, RD" (don’t hash)
+  specialization String?
+  rating         Float   @default(0)
+  reviewCount    Int     @default(0)
+  experience     String?
+  location       String?
+  clinic         String?
+  profileImage   String?
+  publicId       String?
+  bio            String? @db.Text
+  approach       String? @db.Text
+  isVerified     Boolean @default(false)
+  isActive       Boolean @default(true) // available for booking
+
+  durations      ConsultationDuration[]
+  languages      ConsultationLanguage[]
+  focusAreas     ConsultationFocusArea[]
+  availability   ConsultationAvailability[]
+  highlights     ConsultationHighlight[]
+  certifications Certification[]
+  reviews        Review[]
+  bankDetails    BankAccount?
+
+  isPinned Boolean @default(false) // simple toggle
+  order    Int? // optional: 1,2,3 for ranking
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Booking   Booking[]
+}
+
+model ConsultantType {
+  id           String         @id @default(uuid())
+  consultantId String
+  role         ConsultantRole
+  consultant   Consultant     @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@unique([consultantId, role])
+  @@index([consultantId])
+}
+
+model ConsultationDuration {
+  id           String     @id @default(uuid())
+  consultantId String
+  code         String
+  label        String
+  price        Int
+  consultant   Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  Booking      Booking[]
+
+  @@unique([consultantId, code])
+  @@index([consultantId])
+}
+
+model ConsultationLanguage {
+  id           String     @id @default(uuid())
+  consultantId String
+  language     String
+  consultant   Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@unique([consultantId, language])
+  @@index([consultantId])
+}
+
+model ConsultationFocusArea {
+  id           String     @id @default(uuid())
+  consultantId String
+  label        String
+  consultant   Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@index([consultantId])
+}
+
+model ConsultationAvailability {
+  id           String    @id @default(uuid())
+  consultantId String
+  timeSlot     String
+  dayOfWeek    DayOfWeek @default(MONDAY)
+
+  consultant Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  Booking    Booking[]
+}
+
+model ConsultationHighlight {
+  id           String @id @default(uuid())
+  consultantId String
+  highlight    String @db.Text
+
+  consultant Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@index([consultantId])
+}
+
+model Certification {
+  id           String  @id @default(uuid())
+  consultantId String
+  name         String?
+  document     String?
+  year         Int?
+
+  consultant Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@index([consultantId])
+}
+
+model Booking {
+  id               String        @id @default(uuid())
+  userId           String // Link to the User
+  consultantId     String // Link to the Consultant
+  durationId       String // Link to the selected Consultation Duration
+  slotId           String // Selected time slot for the booking
+  date             DateTime // Date of the booking
+  status           BookingStatus @default(PENDING) // Enum for the booking status
+  paymentStatus    PaymentStatus @default(PENDING) // Payment status
+  paymentMethod    PaymentMethod // Track if payment was via COD or Online
+  paymentReference String? // Store the transaction/reference ID for online payments (e.g., PayU payment reference)
+  bookingReference String        @unique // Unique reference ID for the booking
+
+  user       User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consultant Consultant               @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  duration   ConsultationDuration     @relation(fields: [durationId], references: [id], onDelete: Cascade)
+  slot       ConsultationAvailability @relation(fields: [slotId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// ADD-ONS / CUSTOMIZATION FEATURE
+// ============================================
+
+model AddOnCategory {
+  id           String   @id @default(uuid())
+  name         String // e.g., "Choose Your Addon", "Choose Your Beverage" - NOT unique, many vendors can use same name
+  description  String?  @db.Text
+  minSelection Int      @default(0) // Minimum items that must be selected
+  maxSelection Int      @default(1) // Maximum items that can be selected (0 = unlimited)
+  isRequired   Boolean  @default(false) // Is this category mandatory?
+  sortOrder    Int      @default(0) // For display ordering
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  addOns        AddOn[]
+  productAddOns ProductAddOn[]
+  vendor        Vendor?        @relation(fields: [vendorId], references: [id])
+  vendorId      String?
+
+  @@index([isActive])
+}
+
+model AddOn {
+  id          String        @id @default(uuid())
+  categoryId  String
+  category    AddOnCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String // e.g., "Pepsi Can", "Make it Cheesy"
+  description String?       @db.Text
+  price       Float // Additional price for this add-on
+  image       String? // Optional image URL
+  publicId    String? // Optional cloudinary public ID
+  isVeg       Boolean       @default(true) // VEG/NON-VEG indicator
+  isAvailable Boolean       @default(true)
+  stock       Int? // Optional stock tracking
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  productAddOns ProductAddOn[]
+
+  @@index([categoryId])
+  @@index([isAvailable])
+}
+
+model ProductAddOn {
+  id         String        @id @default(uuid())
+  productId  String
+  product    Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   AddOnCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  addOnId    String? // Optional: link specific add-on if needed
+  addOn      AddOn?        @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+  sortOrder  Int           @default(0)
+  createdAt  DateTime      @default(now())
+
+  @@unique([productId, categoryId]) // A product can have each category only once
+  @@index([productId])
+  @@index([categoryId])
+}
+
+model EventData {
+  id            String   @id @default(uuid())
+  eventType     String?
+  name          String
+  email         String?
+  phone         String
+  txnId         String?  @unique
+  paymentStatus String?  @default("PENDING")
+  amount        Float?
+  createdAt     DateTime @default(now())
+}
