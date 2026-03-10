@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "GoodBelly",
+    "slug": "GoodBelly",
+    "scheme": "goodbelly",
+    "version": "1.0.4",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.abhisheksaw.GoodBelly",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow GoodBelly to access your location"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "versionCode": 5,
+      "package": "com.goodbelly.app",
+      "googleServicesFile": "./google-services.json",
+      "notification": {
+        "icon": "./assets/notification-icon.png",
+        "color": "#4CAF50"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow GoodBelly to use your location."
+        }
+      ],
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow GoodBelly to access your microphone."
+        }
+      ]
+    ]
+  }
+}

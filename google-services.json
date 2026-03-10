@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "395685024722",
+        "project_id": "goodbelly-e08b8",
+        "storage_bucket": "goodbelly-e08b8.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:395685024722:android:0df2f9f2cae29e5f402e0b",
+                "android_client_info": {
+                    "package_name": "com.goodbelly.app"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyC7jh1g9A9NiT4xXLjo7uy9oHSD1bm--u4"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}
